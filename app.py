@@ -9,6 +9,11 @@ from flask import Flask, Response, jsonify, request
 
 from gbs_service import answer_question
 
+
+# =========================================================
+# Flask
+# =========================================================
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024
 
@@ -60,6 +65,10 @@ def response_headers(response):
     return response
 
 
+# =========================================================
+# API-routes — ongewijzigde vraagafhandeling
+# =========================================================
+
 @app.post("/start_thread")
 def start_thread():
     return jsonify(
@@ -87,6 +96,7 @@ def send_message():
     )
 
     thread_id = data.get("thread_id")
+
     if not isinstance(thread_id, str):
         thread_id = str(uuid4())
 
@@ -102,6 +112,10 @@ def send_message():
     ), status
 
 
+# =========================================================
+# Vormgeving
+# =========================================================
+
 BUTTON = {
     "background": "#ffffff",
     "color": "#000000",
@@ -111,6 +125,7 @@ BUTTON = {
     "cursor": "pointer",
     "fontSize": "15px",
     "fontFamily": "Arial, sans-serif",
+    "flexShrink": "0",
 }
 
 BUBBLE = {
@@ -131,6 +146,11 @@ WELCOME = (
     "Een antwoord kan nog voorlopig zijn."
 )
 
+
+# =========================================================
+# Dash
+# =========================================================
+
 web = Dash(
     __name__,
     server=app,
@@ -147,6 +167,10 @@ def layout():
                 id="conversation",
                 storage_type="memory",
                 data=[],
+            ),
+            dcc.Store(
+                id="scroll-state",
+                storage_type="memory",
             ),
             dbc.Card(
                 [
@@ -175,15 +199,7 @@ def layout():
                             "flexWrap": "wrap",
                             "padding": "14px",
                             "borderBottom": "1px solid #000000",
-                        },
-                    ),
-                    dbc.Label(
-                        "Database: GBS-FAQ · Nieuwste vraag bovenaan",
-                        style={
-                            "fontSize": "12px",
-                            "padding": "10px 14px 0",
-                            "margin": "0",
-                            "color": "#555555",
+                            "flexShrink": "0",
                         },
                     ),
                     dbc.CardBody(
@@ -208,6 +224,7 @@ def layout():
                             "margin": "0",
                             "padding": "0 14px 8px",
                             "fontSize": "13px",
+                            "flexShrink": "0",
                         },
                     ),
                     dbc.CardBody(
@@ -243,6 +260,7 @@ def layout():
                             "gap": "8px",
                             "padding": "12px",
                             "borderTop": "1px solid #000000",
+                            "flexShrink": "0",
                         },
                     ),
                 ],
@@ -277,10 +295,14 @@ def layout():
 web.layout = layout
 
 
+# =========================================================
+# Gesprek tonen — oudste bovenaan, nieuwste onderaan
+# =========================================================
+
 def render_conversation(turns):
     blocks = []
 
-    for turn in reversed(turns):
+    for turn in turns:
         blocks.append(
             dbc.CardBody(
                 turn["question"],
@@ -299,7 +321,10 @@ def render_conversation(turns):
             blocks.append(
                 dbc.CardBody(
                     response["message"],
-                    style={**BUBBLE, "marginRight": "8%"},
+                    style={
+                        **BUBBLE,
+                        "marginRight": "8%",
+                    },
                 )
             )
 
@@ -325,18 +350,32 @@ def render_conversation(turns):
                         ),
                         dbc.CardBody(
                             document["antwoord"],
-                            style={"whiteSpace": "pre-wrap"},
+                            style={
+                                "whiteSpace": "pre-wrap",
+                            },
                         ),
                     ],
-                    style={**BUBBLE, "marginRight": "8%"},
+                    style={
+                        **BUBBLE,
+                        "marginRight": "8%",
+                    },
                 )
             )
 
     if not blocks:
-        blocks.append(dbc.CardBody(WELCOME, style=BUBBLE))
+        blocks.append(
+            dbc.CardBody(
+                WELCOME,
+                style=BUBBLE,
+            )
+        )
 
     return blocks
 
+
+# =========================================================
+# Vraag versturen — zoekfunctie blijft ongewijzigd
+# =========================================================
 
 @web.callback(
     Output("conversation", "data"),
@@ -378,12 +417,20 @@ def handle_question(send_clicks, submits, restarts, question, turns):
         and isinstance(turn.get("response"), dict)
     ]
 
-    history = [turn["question"] for turn in safe_turns][-6:]
+    history = [
+        turn["question"]
+        for turn in safe_turns
+    ][-6:]
+
     result, status = answer_question(question, history)
 
     # Bewaar mislukte aanvragen niet als gesprekscontext.
     if status >= 400:
-        error_turn = {"question": question, "response": result}
+        error_turn = {
+            "question": question,
+            "response": result,
+        }
+
         return (
             safe_turns,
             render_conversation(safe_turns + [error_turn]),
@@ -391,11 +438,52 @@ def handle_question(send_clicks, submits, restarts, question, turns):
         )
 
     updated = (
-        safe_turns + [{"question": question, "response": result}]
+        safe_turns
+        + [
+            {
+                "question": question,
+                "response": result,
+            }
+        ]
     )[-12:]
 
     return updated, render_conversation(updated), ""
 
 
+# =========================================================
+# Automatisch scrollen na het bijwerken van het gesprek
+# =========================================================
+
+web.clientside_callback(
+    """
+    function(children) {
+        return new Promise(function(resolve) {
+            window.requestAnimationFrame(function() {
+                window.requestAnimationFrame(function() {
+                    const chat = document.getElementById("chat");
+
+                    if (chat) {
+                        chat.scrollTop = chat.scrollHeight;
+                    }
+
+                    resolve(Date.now());
+                });
+            });
+        });
+    }
+    """,
+    Output("scroll-state", "data"),
+    Input("chat", "children"),
+)
+
+
+# =========================================================
+# Lokaal starten
+# =========================================================
+
 if __name__ == "__main__":
-    web.run(host="127.0.0.1", port=8000, debug=False)
+    web.run(
+        host="127.0.0.1",
+        port=8000,
+        debug=False,
+    )
