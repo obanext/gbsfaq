@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+dash>=3.0,<5
+dash-bootstrap-components>=2.0,<3
+openai>=2.0,<3
+requests>=2.32,<3
