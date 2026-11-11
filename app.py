@@ -143,7 +143,11 @@ web = Dash(
 def layout():
     return dbc.Container(
         [
-            dcc.Store(id="conversation", storage_type="memory", data=[]),
+            dcc.Store(
+                id="conversation",
+                storage_type="memory",
+                data=[],
+            ),
             dbc.Card(
                 [
                     dbc.CardHeader(
@@ -184,8 +188,12 @@ def layout():
                     ),
                     dbc.CardBody(
                         id="chat",
-                        children=[dbc.CardBody(WELCOME, style=BUBBLE)],
-                        role="log",
+                        children=[
+                            dbc.CardBody(
+                                WELCOME,
+                                style=BUBBLE,
+                            ),
+                        ],
                         style={
                             "flex": "1",
                             "minHeight": "0",
@@ -196,7 +204,6 @@ def layout():
                     dbc.Label(
                         "",
                         id="status",
-                        role="status",
                         style={
                             "margin": "0",
                             "padding": "0 14px 8px",
@@ -223,7 +230,6 @@ def layout():
                                     "background": "#ffffff",
                                     "color": "#000000",
                                 },
-                                **{"aria-label": "Vraag over GBS"},
                             ),
                             dbc.Button(
                                 "Verstuur",
