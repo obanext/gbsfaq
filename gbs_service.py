@@ -180,6 +180,13 @@ def retrieve_candidates(queries):
         if int(batch.get("code", 200)) >= 400:
             raise SearchError("Zoekdienst meldt een fout.")
 
+        # Alleen aantallen loggen, geen documenten of zoekteksten.
+        logger.warning(
+            "GBS Typesense: gevonden=%s, hits=%d",
+            batch.get("found"),
+            len(batch.get("hits") or []),
+        )
+
         for hit in batch.get("hits", []):
             document = hit.get("document") or {}
             record_id = document.get("id")
@@ -292,6 +299,17 @@ def answer_question(question, history=None):
     try:
         queries = search_plan(question, history)
 
+        # JSON-serialisatie houdt de collectienaam op één logregel.
+        # Alleen configuratienaam en aantallen; geen sleutels of vragen.
+        logger.warning(
+            "GBS zoekplan: collectie=%s, zoekvragen=%d",
+            json.dumps(
+                os.getenv("COLLECTION_FAQ", "gbsfaq1"),
+                ensure_ascii=True,
+            ),
+            len(queries),
+        )
+
         if not queries:
             return {
                 "ok": True,
@@ -300,7 +318,18 @@ def answer_question(question, history=None):
             }, 200
 
         candidates = retrieve_candidates(queries)
+
+        logger.warning(
+            "GBS ophalen: kandidaten=%d",
+            len(candidates),
+        )
+
         selected = select_documents(question, history, candidates)
+
+        logger.warning(
+            "GBS selectie: geselecteerd=%d",
+            len(selected),
+        )
 
         return {
             "ok": True,
